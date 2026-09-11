@@ -7,13 +7,16 @@ import jakarta.transaction.Transactional;
 import jakarta.ws.rs.NotFoundException;
 import portalmissionario.dto.EnviarMensagemRequestDTO;
 import portalmissionario.dto.MensagemDTO;
+import portalmissionario.dto.ReacaoResumoDTO;
 import portalmissionario.entity.DadosMissionariosEntity;
 import portalmissionario.entity.MatrizAcessoEntity;
 import portalmissionario.entity.MensagemEntity;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @ApplicationScoped
@@ -25,6 +28,9 @@ public class MensagemService {
 
     @Inject
     EntityManager entityManager;
+
+    @Inject
+    MensagemReacaoService mensagemReacaoService;
 
     // Passo simples (1a etapa): so persiste e devolve a mensagem gravada. Reacao e thread de
     // resposta ficam pra depois -- aqui mensagemPaiId so passa direto se informado (sem
@@ -70,23 +76,31 @@ public class MensagemService {
         MensagemEntity entity = builder.build();
         entityManager.persist(entity);
 
-        return mapToDTO(entity);
+        return mapToDTO(entity, Collections.emptyList(), null);
     }
 
+    // membroIdAtual (dono do token da requisicao) so serve pra preencher "minhaReacao" no
+    // DTO -- pode ser null (ex.: nenhum uso pratico hoje, ja que o endpoint exige sessao, mas
+    // mantido opcional pra nao acoplar esse metodo a autenticacao).
     @Transactional
-    public MensagemDTO buscaMensagemPorId(Long id) {
+    public MensagemDTO buscaMensagemPorId(Long id, Long membroIdAtual) {
         MensagemEntity entity = entityManager.find(MensagemEntity.class, id);
         if (entity == null) {
             throw new NotFoundException("Mensagem não encontrada: " + id);
         }
-        return mapToDTO(entity);
+        List<ReacaoResumoDTO> resumo = mensagemReacaoService.resumoPorMensagem(id);
+        String minhaReacao = membroIdAtual == null
+                ? null
+                : mensagemReacaoService.minhasReacoes(List.of(id), membroIdAtual).get(id);
+        return mapToDTO(entity, resumo, minhaReacao);
     }
 
     // Mural público do missionário -- todas as mensagens que ele recebeu, mais recente
     // primeiro. Qualquer membro logado pode ver (mensagem é pública, ver
-    // 008_create_table_mensagens.sql), não só quem escreveu.
+    // 008_create_table_mensagens.sql), não só quem escreveu. membroIdAtual preenche
+    // "minhaReacao" de cada mensagem (null se nao informado).
     @Transactional
-    public List<MensagemDTO> buscaMensagensPorMissionario(Long missionarioId) {
+    public List<MensagemDTO> buscaMensagensPorMissionario(Long missionarioId, Long membroIdAtual) {
         List<MensagemEntity> entidades = entityManager.createQuery(
                         "SELECT m FROM MensagemEntity m " +
                                 "WHERE m.destinatarioTipo = :tipo AND m.destinatarioMissionarioId = :id " +
@@ -96,8 +110,15 @@ public class MensagemService {
                 .setParameter("id", missionarioId)
                 .getResultList();
 
+        List<Long> mensagemIds = entidades.stream().map(MensagemEntity::getId).toList();
+        Map<Long, List<ReacaoResumoDTO>> resumos = mensagemReacaoService.resumoPorMensagens(mensagemIds);
+        Map<Long, String> minhasReacoes = mensagemReacaoService.minhasReacoes(mensagemIds, membroIdAtual);
+
         return entidades.stream()
-                .map(this::mapToDTO)
+                .map(entity -> mapToDTO(
+                        entity,
+                        resumos.getOrDefault(entity.getId(), Collections.emptyList()),
+                        minhasReacoes.get(entity.getId())))
                 .collect(Collectors.toList());
     }
 
@@ -128,7 +149,7 @@ public class MensagemService {
         throw new IllegalArgumentException("Tipo de " + rotulo + " inválido (esperado MEMBRO ou MISSIONARIO): " + tipo);
     }
 
-    private MensagemDTO mapToDTO(MensagemEntity entity) {
+    private MensagemDTO mapToDTO(MensagemEntity entity, List<ReacaoResumoDTO> reacoes, String minhaReacao) {
         Long remetenteId = TIPO_MEMBRO.equals(entity.getRemetenteTipo())
                 ? entity.getRemetenteMembroId()
                 : entity.getRemetenteMissionarioId();
@@ -151,6 +172,8 @@ public class MensagemService {
                 .dia(entity.getDia())
                 .hora(entity.getHora())
                 .lida(entity.getLida())
+                .reacoes(reacoes)
+                .minhaReacao(minhaReacao)
                 .build();
     }
 

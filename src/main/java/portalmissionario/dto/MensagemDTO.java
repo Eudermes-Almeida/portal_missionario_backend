@@ -6,6 +6,7 @@ import lombok.*;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.util.List;
 
 // remetenteId/destinatarioId aqui sao um unico campo (nao dois, como na entidade) --
 // o polimorfismo remetente_membro_id/remetente_missionario_id e um detalhe de persistencia;
@@ -29,7 +30,9 @@ import java.time.LocalTime;
         "mensagem",
         "dia",
         "hora",
-        "lida"
+        "lida",
+        "reacoes",
+        "minhaReacao"
 })
 public class MensagemDTO {
 
@@ -74,5 +77,17 @@ public class MensagemDTO {
 
     @JsonbProperty("lida")
     private Boolean lida;
+
+    // Resumo de reacoes (tipo + quantidade), so os tipos com pelo menos 1 reacao. Preenchido
+    // pelo MensagemReacaoService -- fica de fora quando o caller nao pediu resumo (ver
+    // MensagemService).
+    @JsonbProperty("reacoes")
+    private List<ReacaoResumoDTO> reacoes;
+
+    // Tipo de reacao do membro dono do token da requisicao atual, ou null se ele nao reagiu
+    // (ou se nao ha token, ex.: chamada anonima). Nunca reflete reacao de missionario, so de
+    // MEMBRO -- unico ator que hoje consegue reagir (missionario nao tem login).
+    @JsonbProperty("minhaReacao")
+    private String minhaReacao;
 
 }
