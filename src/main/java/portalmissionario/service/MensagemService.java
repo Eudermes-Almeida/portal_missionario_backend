@@ -13,6 +13,8 @@ import portalmissionario.entity.MensagemEntity;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.util.List;
+import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class MensagemService {
@@ -24,11 +26,17 @@ public class MensagemService {
     @Inject
     EntityManager entityManager;
 
-    // Passo simples (1a etapa): so persiste e devolve a mensagem gravada. Reacao, thread de
-    // resposta e "lida" ficam pra depois -- aqui mensagemPaiId so passa direto se informado
-    // (sem validar se o pai existe) e lida sempre nasce false.
+    // Passo simples (1a etapa): so persiste e devolve a mensagem gravada. Reacao e thread de
+    // resposta ficam pra depois -- aqui mensagemPaiId so passa direto se informado (sem
+    // validar se o pai existe).
+    //
+    // remetente sempre e o MEMBRO dono do token da sessao (resolvido no MensagemResource via
+    // SessaoService, nao vem no corpo da requisicao) -- ninguem pode mandar mensagem se
+    // passando por outro membro. "lida" nasce false pq a mensagem e publica no perfil do
+    // missionario (mural), entao so faz sentido controlar leitura do lado do proprio
+    // missionario, nao do membro que escreveu.
     @Transactional
-    public MensagemDTO enviarMensagem(EnviarMensagemRequestDTO request) {
+    public MensagemDTO enviarMensagem(Long remetenteMembroId, EnviarMensagemRequestDTO request) {
         if (request == null || request.getMensagem() == null || request.getMensagem().trim().isEmpty()) {
             throw new IllegalArgumentException("A mensagem é obrigatória.");
         }
@@ -36,12 +44,13 @@ public class MensagemService {
             throw new IllegalArgumentException("A mensagem excede o limite de " + MENSAGEM_MAX_CARACTERES + " caracteres.");
         }
 
-        String[] remetente = resolveNomeUnidade(request.getRemetenteTipo(), request.getRemetenteId(), "remetente");
+        String[] remetente = resolveNomeUnidade(TIPO_MEMBRO, remetenteMembroId, "remetente");
         String[] destinatario = resolveNomeUnidade(request.getDestinatarioTipo(), request.getDestinatarioId(), "destinatário");
 
         MensagemEntity.MensagemEntityBuilder builder = MensagemEntity.builder()
                 .mensagemPaiId(request.getMensagemPaiId())
-                .remetenteTipo(request.getRemetenteTipo())
+                .remetenteTipo(TIPO_MEMBRO)
+                .remetenteMembroId(remetenteMembroId)
                 .remetenteNome(remetente[0])
                 .remetenteUnidade(remetente[1])
                 .destinatarioTipo(request.getDestinatarioTipo())
@@ -51,12 +60,6 @@ public class MensagemService {
                 .dia(LocalDate.now())
                 .hora(LocalTime.now())
                 .lida(false);
-
-        if (TIPO_MEMBRO.equals(request.getRemetenteTipo())) {
-            builder.remetenteMembroId(request.getRemetenteId());
-        } else {
-            builder.remetenteMissionarioId(request.getRemetenteId());
-        }
 
         if (TIPO_MEMBRO.equals(request.getDestinatarioTipo())) {
             builder.destinatarioMembroId(request.getDestinatarioId());
@@ -77,6 +80,25 @@ public class MensagemService {
             throw new NotFoundException("Mensagem não encontrada: " + id);
         }
         return mapToDTO(entity);
+    }
+
+    // Mural público do missionário -- todas as mensagens que ele recebeu, mais recente
+    // primeiro. Qualquer membro logado pode ver (mensagem é pública, ver
+    // 008_create_table_mensagens.sql), não só quem escreveu.
+    @Transactional
+    public List<MensagemDTO> buscaMensagensPorMissionario(Long missionarioId) {
+        List<MensagemEntity> entidades = entityManager.createQuery(
+                        "SELECT m FROM MensagemEntity m " +
+                                "WHERE m.destinatarioTipo = :tipo AND m.destinatarioMissionarioId = :id " +
+                                "ORDER BY m.dia DESC, m.hora DESC",
+                        MensagemEntity.class)
+                .setParameter("tipo", TIPO_MISSIONARIO)
+                .setParameter("id", missionarioId)
+                .getResultList();
+
+        return entidades.stream()
+                .map(this::mapToDTO)
+                .collect(Collectors.toList());
     }
 
     // Resolve nome/unidade do lado (remetente ou destinatario) na tabela certa conforme o
