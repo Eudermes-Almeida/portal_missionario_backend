@@ -8,6 +8,10 @@ import lombok.*;
 // (numeração interna da planilha, sem uso fora dela) e "registromembro" (mesmo fator secreto de
 // identificação do Primeiro Acesso usado em matriz_acesso) ficam de fora da resposta da API,
 // mesmo padrão já aplicado no projeto irmão RAIO_X_UNIDADE (ver DadosMissionariosDTO de lá).
+// "email" também fica de fora por proposito -- só o backend usa o endereço de verdade pra
+// disparar o email (ver DadosMissionariosResource/EnvioEmailService); o front só recebe
+// "temEmail" (booleano) pra saber se pode oferecer o botão "Enviar Email" sem nunca expor o
+// endereço do missionário via API pública.
 @Data
 @Builder
 @AllArgsConstructor
@@ -24,7 +28,8 @@ import lombok.*;
         "finalmissao",
         "missao",
         "aniversario",
-        "linkfoto"
+        "linkfoto",
+        "temEmail"
 })
 public class DadosMissionariosDTO {
 
@@ -63,5 +68,8 @@ public class DadosMissionariosDTO {
 
     @JsonbProperty("linkfoto")
     private String linkfoto;
+
+    @JsonbProperty("temEmail")
+    private Boolean temEmail;
 
 }

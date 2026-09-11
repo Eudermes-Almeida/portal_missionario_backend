@@ -78,6 +78,7 @@ public class DadosMissionariosService {
                 .missao(entity.getMissao())
                 .aniversario(entity.getAniversario())
                 .linkfoto(entity.getLinkfoto())
+                .temEmail(entity.getEmail() != null && !entity.getEmail().isBlank())
                 .build();
     }
 }

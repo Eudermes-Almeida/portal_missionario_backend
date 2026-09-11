@@ -48,4 +48,6 @@ public class DadosMissionariosEntity {
 
     private String linkfoto;
 
+    private String email;
+
 }
