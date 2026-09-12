@@ -81,7 +81,12 @@ public class DadosMissionariosService {
     }
 
     private DadosMissionariosDTO mapToDTO(DadosMissionariosEntity entity, String registromembroLogado) {
-        boolean podeEscreverExperiencia = !RESTRICAO_PROPRIO_MISSIONARIO_ATIVA
+        // "sou eu mesmo" -- mesmo calculo usado tanto pra "Escrever Experiencia" quanto pra
+        // "Subir Fotos" (ExperienciaService/FotoMissionarioService), ja que as duas features
+        // tem a MESMA regra de elegibilidade (o proprio missionario do perfil). Cada endpoint
+        // ainda tem sua propria flag de enforcement no backend (defesa em profundidade), mas o
+        // sinal que o front usa pra habilitar/desabilitar os 2 botoes e este unico calculo.
+        boolean souEsteMissionario = !RESTRICAO_PROPRIO_MISSIONARIO_ATIVA
                 || (registromembroLogado != null
                         && entity.getRegistromembro() != null
                         && registromembroLogado.equals(entity.getRegistromembro()));
@@ -100,7 +105,8 @@ public class DadosMissionariosService {
                 .aniversario(entity.getAniversario())
                 .linkfoto(entity.getLinkfoto())
                 .temEmail(entity.getEmail() != null && !entity.getEmail().isBlank())
-                .podeEscreverExperiencia(podeEscreverExperiencia)
+                .podeEscreverExperiencia(souEsteMissionario)
+                .podeSubirFoto(souEsteMissionario)
                 .build();
     }
 }

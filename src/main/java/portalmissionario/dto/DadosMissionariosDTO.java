@@ -32,7 +32,8 @@ import lombok.*;
         "aniversario",
         "linkfoto",
         "temEmail",
-        "podeEscreverExperiencia"
+        "podeEscreverExperiencia",
+        "podeSubirFoto"
 })
 public class DadosMissionariosDTO {
 
@@ -77,5 +78,8 @@ public class DadosMissionariosDTO {
 
     @JsonbProperty("podeEscreverExperiencia")
     private Boolean podeEscreverExperiencia;
+
+    @JsonbProperty("podeSubirFoto")
+    private Boolean podeSubirFoto;
 
 }
