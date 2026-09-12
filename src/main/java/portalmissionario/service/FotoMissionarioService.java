@@ -7,14 +7,19 @@ import jakarta.transaction.Transactional;
 import jakarta.ws.rs.ForbiddenException;
 import jakarta.ws.rs.NotFoundException;
 import portalmissionario.dto.FotoMissionarioDTO;
+import portalmissionario.dto.ReacaoResumoDTO;
 import portalmissionario.entity.DadosMissionariosEntity;
 import portalmissionario.entity.FotoMissionarioEntity;
 import portalmissionario.entity.MatrizAcessoEntity;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 // Galeria de fotos do missionario -- mesma tratativa de ExperienciaService (autor e sempre o
 // proprio missionario-alvo), so que aqui o "conteudo" e um arquivo de imagem em vez de texto,
@@ -35,6 +40,12 @@ public class FotoMissionarioService {
 
     @Inject
     SupabaseStorageService supabaseStorageService;
+
+    @Inject
+    FotoReacaoService fotoReacaoService;
+
+    @Inject
+    FotoComentarioService fotoComentarioService;
 
     // membroAutorId e o dono do token da sessao (resolvido no FotoMissionarioResource via
     // SessaoService, nunca vem no corpo). "bytes"/"contentType" ja chegam do multipart do
@@ -75,31 +86,46 @@ public class FotoMissionarioService {
                 .build();
         entityManager.persist(entity);
 
-        return mapToDTO(entity);
+        return mapToDTO(entity, Collections.emptyList(), null, false);
     }
 
     // Galeria pública do missionário, mais recente primeiro -- qualquer membro logado pode ver.
+    // membroIdAtual preenche "minhaReacao" de cada foto (null se não informado), mesmo padrão
+    // de buscaExperienciasPorMissionario.
     @Transactional
-    public List<FotoMissionarioDTO> buscaFotosPorMissionario(Long missionarioId) {
-        return entityManager.createQuery(
+    public List<FotoMissionarioDTO> buscaFotosPorMissionario(Long missionarioId, Long membroIdAtual) {
+        List<FotoMissionarioEntity> entidades = entityManager.createQuery(
                         "SELECT f FROM FotoMissionarioEntity f " +
                                 "WHERE f.missionarioId = :id " +
                                 "ORDER BY f.dia DESC, f.hora DESC",
                         FotoMissionarioEntity.class)
                 .setParameter("id", missionarioId)
-                .getResultList()
-                .stream()
-                .map(this::mapToDTO)
-                .toList();
+                .getResultList();
+
+        List<Long> fotoIds = entidades.stream().map(FotoMissionarioEntity::getId).toList();
+        Map<Long, List<ReacaoResumoDTO>> resumos = fotoReacaoService.resumoPorFotos(fotoIds);
+        Map<Long, String> minhasReacoes = fotoReacaoService.minhasReacoes(fotoIds, membroIdAtual);
+        Set<Long> fotosComComentario = fotoComentarioService.fotosComComentario(fotoIds);
+
+        return entidades.stream()
+                .map(entity -> mapToDTO(
+                        entity,
+                        resumos.getOrDefault(entity.getId(), Collections.emptyList()),
+                        minhasReacoes.get(entity.getId()),
+                        fotosComComentario.contains(entity.getId())))
+                .collect(Collectors.toList());
     }
 
-    private FotoMissionarioDTO mapToDTO(FotoMissionarioEntity entity) {
+    private FotoMissionarioDTO mapToDTO(FotoMissionarioEntity entity, List<ReacaoResumoDTO> reacoes, String minhaReacao, boolean temComentario) {
         return FotoMissionarioDTO.builder()
                 .id(entity.getId())
                 .missionarioId(entity.getMissionarioId())
                 .url(entity.getUrl())
                 .dia(entity.getDia())
                 .hora(entity.getHora())
+                .reacoes(reacoes)
+                .minhaReacao(minhaReacao)
+                .temComentario(temComentario)
                 .build();
     }
 
