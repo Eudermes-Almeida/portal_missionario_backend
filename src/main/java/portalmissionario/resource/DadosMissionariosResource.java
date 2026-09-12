@@ -51,7 +51,7 @@ public class DadosMissionariosResource {
             @APIResponse(responseCode = "500", description = "Erro interno do servidor", content = @Content(schema = @Schema(implementation = DadosMissionariosDTO.class))),
     })
     @Operation(summary = "Busca missionários por unidade", description = "Busca os missionários (dados atuais, tabela dadosmissionarios) de uma unidade específica. Informar 'Estaca Betim' retorna os dados de todas as unidades, já que a estaca é a soma de todas as alas/ramos.")
-    public Response buscaDadosMissionariosPorUnidade(@QueryParam("unidade") String unidade) {
+    public Response buscaDadosMissionariosPorUnidade(@HeaderParam(HEADER_TOKEN) String token, @QueryParam("unidade") String unidade) {
         try {
             if (unidade == null || unidade.trim().isEmpty()) {
                 return Response.status(Response.Status.BAD_REQUEST)
@@ -59,7 +59,13 @@ public class DadosMissionariosResource {
                         .build();
             }
 
-            List<DadosMissionariosDTO> dadosMissionarios = dadosMissionariosService.buscaDadosMissionariosPorUnidade(unidade);
+            // registromembro do membro logado (se houver sessão válida) só serve pra calcular
+            // "podeEscreverExperiencia" de cada missionário -- ver DadosMissionariosService.
+            String registromembroLogado = sessaoService.buscaMembroPorToken(token)
+                    .map(MatrizAcessoEntity::getRegistromembro)
+                    .orElse(null);
+
+            List<DadosMissionariosDTO> dadosMissionarios = dadosMissionariosService.buscaDadosMissionariosPorUnidade(unidade, registromembroLogado);
 
             return Response.ok(dadosMissionarios).build();
         } catch (Exception e) {

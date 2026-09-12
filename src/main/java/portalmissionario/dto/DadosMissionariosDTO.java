@@ -11,7 +11,9 @@ import lombok.*;
 // "email" também fica de fora por proposito -- só o backend usa o endereço de verdade pra
 // disparar o email (ver DadosMissionariosResource/EnvioEmailService); o front só recebe
 // "temEmail" (booleano) pra saber se pode oferecer o botão "Enviar Email" sem nunca expor o
-// endereço do missionário via API pública.
+// endereço do missionário via API pública. Mesma ideia pra "podeEscreverExperiencia": o front
+// nunca compara registromembro sozinho, só recebe o resultado já calculado (ver
+// DadosMissionariosService/ExperienciaService).
 @Data
 @Builder
 @AllArgsConstructor
@@ -29,7 +31,8 @@ import lombok.*;
         "missao",
         "aniversario",
         "linkfoto",
-        "temEmail"
+        "temEmail",
+        "podeEscreverExperiencia"
 })
 public class DadosMissionariosDTO {
 
@@ -71,5 +74,8 @@ public class DadosMissionariosDTO {
 
     @JsonbProperty("temEmail")
     private Boolean temEmail;
+
+    @JsonbProperty("podeEscreverExperiencia")
+    private Boolean podeEscreverExperiencia;
 
 }
