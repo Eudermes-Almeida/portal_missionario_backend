@@ -43,6 +43,9 @@ public class ExperienciaService {
     @Inject
     ExperienciaReacaoService experienciaReacaoService;
 
+    @Inject
+    ExperienciaComentarioService experienciaComentarioService;
+
     // membroAutorId e o dono do token da sessao (resolvido no ExperienciaResource via
     // SessaoService, nunca vem no corpo) -- so pode escrever quem, logado, e a MESMA pessoa do
     // missionario-alvo. Esse vinculo e feito comparando "registromembro" das duas tabelas (o
@@ -81,7 +84,7 @@ public class ExperienciaService {
                 .build();
         entityManager.persist(entity);
 
-        return mapToDTO(entity, Collections.emptyList(), null);
+        return mapToDTO(entity, Collections.emptyList(), null, 0L);
     }
 
     // Mural público de experiências do missionário, mais recente primeiro. Qualquer membro
@@ -100,16 +103,18 @@ public class ExperienciaService {
         List<Long> experienciaIds = entidades.stream().map(ExperienciaEntity::getId).toList();
         Map<Long, List<ReacaoResumoDTO>> resumos = experienciaReacaoService.resumoPorExperiencias(experienciaIds);
         Map<Long, String> minhasReacoes = experienciaReacaoService.minhasReacoes(experienciaIds, membroIdAtual);
+        Map<Long, Long> quantidadesComentarios = experienciaComentarioService.quantidadePorExperiencias(experienciaIds);
 
         return entidades.stream()
                 .map(entity -> mapToDTO(
                         entity,
                         resumos.getOrDefault(entity.getId(), Collections.emptyList()),
-                        minhasReacoes.get(entity.getId())))
+                        minhasReacoes.get(entity.getId()),
+                        quantidadesComentarios.getOrDefault(entity.getId(), 0L)))
                 .collect(Collectors.toList());
     }
 
-    private ExperienciaDTO mapToDTO(ExperienciaEntity entity, List<ReacaoResumoDTO> reacoes, String minhaReacao) {
+    private ExperienciaDTO mapToDTO(ExperienciaEntity entity, List<ReacaoResumoDTO> reacoes, String minhaReacao, Long quantidadeComentarios) {
         return ExperienciaDTO.builder()
                 .id(entity.getId())
                 .missionarioId(entity.getMissionarioId())
@@ -118,6 +123,7 @@ public class ExperienciaService {
                 .hora(entity.getHora())
                 .reacoes(reacoes)
                 .minhaReacao(minhaReacao)
+                .quantidadeComentarios(quantidadeComentarios)
                 .build();
     }
 

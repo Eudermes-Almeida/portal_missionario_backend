@@ -34,4 +34,7 @@ public class ExperienciaDTO {
     @JsonbProperty("minhaReacao")
     private String minhaReacao;
 
+    @JsonbProperty("quantidadeComentarios")
+    private Long quantidadeComentarios;
+
 }

@@ -18,12 +18,15 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
 import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
 import org.eclipse.microprofile.openapi.annotations.responses.APIResponses;
 import org.eclipse.microprofile.openapi.annotations.tags.Tag;
+import portalmissionario.dto.EscreverComentarioRequestDTO;
 import portalmissionario.dto.EscreverExperienciaRequestDTO;
+import portalmissionario.dto.ExperienciaComentarioDTO;
 import portalmissionario.dto.ExperienciaDTO;
 import portalmissionario.dto.ReacaoAutorDTO;
 import portalmissionario.dto.ReacaoResumoDTO;
 import portalmissionario.dto.ReagirRequestDTO;
 import portalmissionario.entity.MatrizAcessoEntity;
+import portalmissionario.service.ExperienciaComentarioService;
 import portalmissionario.service.ExperienciaReacaoService;
 import portalmissionario.service.ExperienciaService;
 import portalmissionario.service.SessaoService;
@@ -43,6 +46,9 @@ public class ExperienciaResource {
 
     @Inject
     ExperienciaReacaoService experienciaReacaoService;
+
+    @Inject
+    ExperienciaComentarioService experienciaComentarioService;
 
     @Inject
     SessaoService sessaoService;
@@ -191,6 +197,72 @@ public class ExperienciaResource {
         } catch (Exception e) {
             return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
                     .entity("Erro ao listar quem reagiu: " + e.getMessage())
+                    .build();
+        }
+    }
+
+    @POST
+    @Path("/{id}/comentario")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    @Tag(name = "Comentar Experiência", description = "Registra um comentário público numa experiência")
+    @APIResponses(value = {
+            @APIResponse(responseCode = "200", description = "Comentário gravado", content = @Content(schema = @Schema(implementation = ExperienciaComentarioDTO.class))),
+            @APIResponse(responseCode = "400", description = "Comentário vazio ou acima de 100 caracteres"),
+            @APIResponse(responseCode = "401", description = "Sessão inválida ou expirada"),
+            @APIResponse(responseCode = "404", description = "Experiência não encontrada"),
+            @APIResponse(responseCode = "500", description = "Erro interno do servidor"),
+    })
+    @Operation(summary = "Comenta uma experiência", description = "O autor é sempre o membro dono do token em X-Auth-Token. Múltiplos comentários por pessoa na mesma experiência são permitidos.")
+    public Response escreverComentario(@HeaderParam(HEADER_TOKEN) String token, @PathParam("id") Long id, EscreverComentarioRequestDTO request) {
+        try {
+            if (request == null || request.getComentario() == null || request.getComentario().trim().isEmpty()) {
+                return Response.status(Response.Status.BAD_REQUEST)
+                        .entity("Informe o comentário.")
+                        .build();
+            }
+
+            Optional<MatrizAcessoEntity> autorOpt = sessaoService.buscaMembroPorToken(token);
+            if (autorOpt.isEmpty()) {
+                return Response.status(Response.Status.UNAUTHORIZED)
+                        .entity("Sessão inválida ou expirada. Faça login novamente.")
+                        .build();
+            }
+
+            ExperienciaComentarioDTO comentario = experienciaComentarioService.escreverComentario(id, autorOpt.get().getId(), request);
+
+            return Response.ok(comentario).build();
+        } catch (NotFoundException e) {
+            return Response.status(Response.Status.NOT_FOUND)
+                    .entity(e.getMessage())
+                    .build();
+        } catch (IllegalArgumentException e) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .entity(e.getMessage())
+                    .build();
+        } catch (Exception e) {
+            return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
+                    .entity("Erro ao comentar experiência: " + e.getMessage())
+                    .build();
+        }
+    }
+
+    @GET
+    @Path("/{id}/comentario")
+    @Produces(MediaType.APPLICATION_JSON)
+    @Tag(name = "Comentários da Experiência", description = "Lista os comentários públicos de uma experiência")
+    @APIResponses(value = {
+            @APIResponse(responseCode = "200", description = "Comentários da experiência, mais recente primeiro (lista vazia se não houver nenhum)", content = @Content(schema = @Schema(implementation = ExperienciaComentarioDTO.class))),
+            @APIResponse(responseCode = "500", description = "Erro interno do servidor"),
+    })
+    @Operation(summary = "Lista comentários de uma experiência")
+    public Response buscaComentariosPorExperiencia(@PathParam("id") Long id) {
+        try {
+            List<ExperienciaComentarioDTO> comentarios = experienciaComentarioService.buscaComentariosPorExperiencia(id);
+            return Response.ok(comentarios).build();
+        } catch (Exception e) {
+            return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
+                    .entity("Erro ao buscar comentários: " + e.getMessage())
                     .build();
         }
     }
